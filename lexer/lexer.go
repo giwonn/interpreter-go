@@ -33,17 +33,43 @@ func (lexer *Lexer) NextToken() token.Token {
 
 	switch lexer.ch {
 	case '=':
-		tok = newToken(token.ASSIGN, lexer.ch)
+		if lexer.peekChar() == '=' {
+			ch := lexer.ch
+			lexer.readChar()
+			literal := string(ch) + string(lexer.ch)
+			tok = token.Token{Type: token.EQ, Literal: literal}
+		} else {
+			tok = newToken(token.ASSIGN, lexer.ch)
+		}
+	case '+':
+		tok = newToken(token.PLUS, lexer.ch)
+	case '-':
+		tok = newToken(token.MINUS, lexer.ch)
+	case '!':
+		if lexer.peekChar() == '=' {
+			ch := lexer.ch
+			lexer.readChar()
+			literal := string(ch) + string(lexer.ch)
+			tok = token.Token{Type: token.NOT_EQ, Literal: literal}
+		} else {
+			tok = newToken(token.BANG, lexer.ch)
+		}
+	case '/':
+		tok = newToken(token.SLASH, lexer.ch)
+	case '*':
+		tok = newToken(token.ASTERISK, lexer.ch)
+	case '<':
+		tok = newToken(token.LT, lexer.ch)
+	case '>':
+		tok = newToken(token.RT, lexer.ch)
 	case ';':
 		tok = newToken(token.SEMICOLON, lexer.ch)
+	case ',':
+		tok = newToken(token.COMMA, lexer.ch)
 	case '(':
 		tok = newToken(token.LPAREN, lexer.ch)
 	case ')':
 		tok = newToken(token.RPAREN, lexer.ch)
-	case ',':
-		tok = newToken(token.COMMA, lexer.ch)
-	case '+':
-		tok = newToken(token.PLUS, lexer.ch)
 	case '{':
 		tok = newToken(token.LBRACE, lexer.ch)
 	case '}':
@@ -72,6 +98,7 @@ func newToken(tokenType token.TokenType, ch byte) token.Token {
 	return token.Token{Type: tokenType, Literal: string(ch)}
 }
 
+// 변수명, 예약어 파싱
 func (lexer *Lexer) readIdentifier() string {
 	position := lexer.position
 	for isLetter(lexer.ch) {
@@ -84,12 +111,14 @@ func isLetter(ch byte) bool {
 	return 'a' <= ch && ch <= 'z' || 'A' <= ch && ch <= 'Z' || ch == '_'
 }
 
+// 공백 및 줄바꿈 스킵
 func (lexer *Lexer) skipWhiteSpace() {
 	for lexer.ch == ' ' || lexer.ch == '\t' || lexer.ch == '\n' || lexer.ch == '\r' {
 		lexer.readChar()
 	}
 }
 
+// 정수 파싱 (실수는 미지원)
 func (lexer *Lexer) readNumber() string {
 	position := lexer.position
 	for isDigit(lexer.ch) {
@@ -100,4 +129,13 @@ func (lexer *Lexer) readNumber() string {
 
 func isDigit(ch byte) bool {
 	return '0' <= ch && ch <= '9'
+}
+
+// 다음에 나올 입력을 살펴봄(=peek)
+func (lexer *Lexer) peekChar() byte {
+	if lexer.readPosition >= len(lexer.input) {
+		return 0
+	}
+
+	return lexer.input[lexer.readPosition]
 }
