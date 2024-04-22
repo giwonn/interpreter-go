@@ -51,6 +51,7 @@ func (p *Parser) ParseProgram() *ast.Program {
 		if statement != nil {
 			program.Statements = append(program.Statements, statement)
 		}
+		// parseStatement에 선언된 문법이 아니면 토큰 스킵
 		p.nextToken()
 	}
 

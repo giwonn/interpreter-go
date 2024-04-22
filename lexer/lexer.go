@@ -12,7 +12,7 @@ type Lexer struct {
 // New 생성자
 func New(input string) *Lexer {
 	lexer := &Lexer{input: input}
-	lexer.readChar()
+	lexer.readChar() // position, readPosition, char 초기화
 	return lexer
 }
 
