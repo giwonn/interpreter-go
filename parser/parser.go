@@ -61,6 +61,8 @@ func (p *Parser) parseStatement() ast.Statement {
 	switch p.currentToken.Type {
 	case token.LET:
 		return p.parseLetStatement()
+	case token.RETURN:
+		return p.parseReturnStatement()
 	default:
 		return nil
 	}
@@ -84,6 +86,19 @@ func (p *Parser) parseLetStatement() *ast.LetStatement {
 	}
 
 	if !p.currentTokenIs(token.SEMICOLON) {
+		p.nextToken()
+	}
+
+	return statement
+}
+
+func (p *Parser) parseReturnStatement() *ast.ReturnStatement {
+	statement := &ast.ReturnStatement{Token: p.currentToken}
+
+	p.nextToken()
+
+	// 세미콜론을 만날 때까지 토큰을 건너뜀
+	for !p.currentTokenIs(token.SEMICOLON) {
 		p.nextToken()
 	}
 

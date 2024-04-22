@@ -77,3 +77,35 @@ func testLetStatements(t *testing.T, s ast.Statement, expectedName string) bool 
 
 	return true
 }
+
+func TestReturnStatements(t *testing.T) {
+	input := `
+		return 5;
+		return 10;
+		return 993322;
+	`
+
+	l := lexer.New(input)
+	p := New(l)
+
+	program := p.ParseProgram()
+	checkParserErrors(t, p)
+
+	// parser가 파싱한 결과물이 3줄이 맞는지 체크
+	if len(program.Statements) != 3 {
+		t.Fatalf("program.Statements does not contain 3 statements. got=%d", len(program.Statements))
+	}
+
+	for _, statement := range program.Statements {
+		returnStatement, ok := statement.(*ast.ReturnStatement) // ReturnStatement로 형변환
+		if !ok {
+			t.Errorf("returnStatement not *ast.ReturnStatement. got=%T", statement)
+			continue
+		}
+
+		// 현재 루프의 statement가 return 문법인지 체크
+		if returnStatement.TokenLiteral() != "return" {
+			t.Errorf("returnStatement.TokenLiteral not 'return'. got=%q", returnStatement.TokenLiteral())
+		}
+	}
+}
