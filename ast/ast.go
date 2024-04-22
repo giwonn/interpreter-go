@@ -44,7 +44,7 @@ func (program *Program) String() string {
 	return out.String()
 }
 
-// Identifier : 식별자(=변수명) 토큰
+// Identifier : 식별자 토큰
 type Identifier struct {
 	Token token.Token // token.IDENT 토큰
 	Value string      // 변수명

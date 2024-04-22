@@ -109,3 +109,37 @@ func TestReturnStatements(t *testing.T) {
 		}
 	}
 }
+
+func TestIdentifierStatements(t *testing.T) {
+	input := "foobar"
+
+	l := lexer.New(input)
+	p := New(l)
+	program := p.ParseProgram()
+	checkParserErrors(t, p)
+
+	if len(program.Statements) != 1 {
+		t.Fatalf("program has not enough statements. got=%d", len(program.Statements))
+	}
+
+	statement, ok := program.Statements[0].(*ast.ExpressionStatement)
+	// input이 표현식문이 맞는지 체크
+	if !ok {
+		t.Fatalf("program.Statements[0] is not ast.ExpressionStatement. got=%T", program.Statements[0])
+	}
+
+	identifier, ok := statement.Expression.(*ast.Identifier)
+	// 표현식문의 표현식이 식별자가 맞는지 체크
+	if !ok {
+		t.Fatalf("expression is not *ast.Identifier. got=%T", statement.Expression)
+	}
+	// 식별자의 value가 foobar가 맞는지 체크
+	if identifier.Value != "foobar" {
+		t.Errorf("identifier.Value not '%s'. got %s", "foobar", identifier.Value)
+	}
+	// 식별자의 토큰 리터럴이 foobar가 맞는지 체크
+	if identifier.TokenLiteral() != "foobar" {
+		t.Errorf("identifier.TokenLiteral not %s. got %s", "foobar", identifier.TokenLiteral())
+	}
+
+}
