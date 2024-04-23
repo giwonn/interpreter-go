@@ -5,6 +5,7 @@ import (
 	"interpreter-go/ast"
 	"interpreter-go/lexer"
 	"interpreter-go/token"
+	"strconv"
 )
 
 const (
@@ -48,6 +49,7 @@ func New(l *lexer.Lexer) *Parser {
 	// 전위표현식 파싱 함수 추가
 	p.prefixParseFns = make(map[token.TokenType]prefixParseFn)
 	p.registerPrefix(token.IDENT, p.parseIdentifier)
+	p.registerPrefix(token.INT, p.parseIntegerLiteral)
 
 	return p
 }
@@ -154,6 +156,20 @@ func (p *Parser) parseExpression(precedence int) ast.Expression {
 	leftExpression := prefixFunc()
 
 	return leftExpression
+}
+
+func (p *Parser) parseIntegerLiteral() ast.Expression {
+	lit := &ast.IntegerLiteral{Token: p.currentToken}
+
+	value, err := strconv.ParseInt(p.currentToken.Literal, 0, 64)
+	if err != nil {
+		msg := fmt.Sprintf("could not parse %q as interger", p.currentToken.Literal)
+		p.errors = append(p.errors, msg)
+		return nil
+	}
+
+	lit.Value = value
+	return lit
 }
 
 func (p *Parser) currentTokenIs(t token.TokenType) bool {
