@@ -101,7 +101,7 @@ func (rs *ReturnStatement) String() string {
 	return out.String()
 }
 
-// ExpressionStatement : 표현식문
+// ExpressionStatement : 명령문 표현식
 type ExpressionStatement struct {
 	Token      token.Token
 	Expression Expression
@@ -116,6 +116,7 @@ func (es *ExpressionStatement) String() string {
 	return ""
 }
 
+// IntergerLiteral : Integer 리터럴 표현식
 type IntegerLiteral struct {
 	Token token.Token
 	Value int64
@@ -124,3 +125,23 @@ type IntegerLiteral struct {
 func (il *IntegerLiteral) expressionNode()      {}
 func (il *IntegerLiteral) TokenLiteral() string { return il.Token.Literal }
 func (il *IntegerLiteral) String() string       { return il.Token.Literal }
+
+// PrefixExpression : 전위 명령문
+type PrefixExpression struct {
+	Token    token.Token // 전위 연산자 토큰 ex) !, -, ...
+	Operator string
+	Right    Expression
+}
+
+func (pe *PrefixExpression) expressionNode()      {}
+func (pe *PrefixExpression) TokenLiteral() string { return pe.Token.Literal }
+func (pe *PrefixExpression) String() string {
+	var out bytes.Buffer
+
+	out.WriteString("(")
+	out.WriteString(pe.Operator)
+	out.WriteString(pe.Right.String())
+	out.WriteString(")")
+
+	return out.String()
+}
