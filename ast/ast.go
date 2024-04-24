@@ -10,13 +10,13 @@ type Node interface {
 	String() string
 }
 
-// 표현식
+// 명령문 (= 실행 가능한 코드 조각) (= 구문) (= 값이 산출되지 않지만 무언가를 실행함)
 type Statement interface {
 	Node
 	statementNode()
 }
 
-// Expression : 명령문
+// Expression : 표현식 (= 수식) (= 평가 가능한 값) (= 값을 산출함)
 type Expression interface {
 	Node
 	expressionNode()
@@ -54,7 +54,7 @@ func (i *Identifier) expressionNode()      {}
 func (i *Identifier) TokenLiteral() string { return i.Token.Literal }
 func (i *Identifier) String() string       { return i.Value }
 
-// LetStatement : LET 표현식
+// LetStatement : LET 구문
 type LetStatement struct {
 	Token token.Token // token.LET 토큰
 	Name  *Identifier // 변수명
@@ -79,7 +79,7 @@ func (ls *LetStatement) String() string {
 	return out.String()
 }
 
-// ReturnStatement : return 표현식
+// ReturnStatement : return 구문
 type ReturnStatement struct {
 	Token       token.Token // token.RETURN 토큰
 	ReturnValue Expression
@@ -101,7 +101,7 @@ func (rs *ReturnStatement) String() string {
 	return out.String()
 }
 
-// ExpressionStatement : 명령문 표현식
+// ExpressionStatement : 표현식 구문
 type ExpressionStatement struct {
 	Token      token.Token
 	Expression Expression
@@ -116,7 +116,7 @@ func (es *ExpressionStatement) String() string {
 	return ""
 }
 
-// IntergerLiteral : Integer 리터럴 표현식
+// IntergerLiteral : Integer 리터럴
 type IntegerLiteral struct {
 	Token token.Token
 	Value int64
@@ -126,7 +126,7 @@ func (il *IntegerLiteral) expressionNode()      {}
 func (il *IntegerLiteral) TokenLiteral() string { return il.Token.Literal }
 func (il *IntegerLiteral) String() string       { return il.Token.Literal }
 
-// PrefixExpression : 전위 명령문
+// PrefixExpression : 전위 표현식
 type PrefixExpression struct {
 	Token    token.Token // 전위 연산자 토큰 ex) !, -, ...
 	Operator string
