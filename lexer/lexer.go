@@ -61,7 +61,7 @@ func (lexer *Lexer) NextToken() token.Token {
 	case '<':
 		tok = newToken(token.LT, lexer.ch)
 	case '>':
-		tok = newToken(token.RT, lexer.ch)
+		tok = newToken(token.GT, lexer.ch)
 	case ';':
 		tok = newToken(token.SEMICOLON, lexer.ch)
 	case ',':

@@ -11,7 +11,7 @@ import (
 const (
 	_ int = iota
 	LOWEST
-	EQUALS      // ==
+	EQUALS      // == 또는 !=
 	LESSGREATER // > 또는 <
 	SUM         // +
 	PRODUCT     // *
@@ -52,6 +52,17 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerPrefix(token.INT, p.parseIntegerLiteral)
 	p.registerPrefix(token.BANG, p.parsePrefixExpression)
 	p.registerPrefix(token.MINUS, p.parsePrefixExpression)
+
+	// 중위표현식 파싱 함수 추가
+	p.infixParseFns = make(map[token.TokenType]infixParseFn)
+	p.registerInfix(token.PLUS, p.parseInfixExpression)
+	p.registerInfix(token.MINUS, p.parseInfixExpression)
+	p.registerInfix(token.SLASH, p.parseInfixExpression)
+	p.registerInfix(token.ASTERISK, p.parseInfixExpression)
+	p.registerInfix(token.EQ, p.parseInfixExpression)
+	p.registerInfix(token.NOT_EQ, p.parseInfixExpression)
+	p.registerInfix(token.LT, p.parseInfixExpression)
+	p.registerInfix(token.GT, p.parseInfixExpression)
 
 	return p
 }
@@ -158,6 +169,21 @@ func (p *Parser) parseExpression(precedence int) ast.Expression {
 	}
 	leftExpression := prefixFunc()
 
+	// 문장별로 처음 호출되는 parseExpression은 precdence를 LOWEST로 받기 때문에 사실상 세미콜론이 나올때까지 계속 루프를 돌게 됨
+	for !p.peekTokenIs(token.SEMICOLON) && precedence < p.peekPrecedence() {
+		infixFunc := p.infixParseFns[p.peekToken.Type]
+		if infixFunc == nil {
+			return leftExpression
+		}
+
+		p.nextToken()
+
+		// 1. infixFunc으로 사용되는 parseInfixExpression에서 parseExpression 함수에 중위연산자 우선순위를 precedence로 전달하여 재귀호출하고 있음
+		// 2. 재귀 호출을 통해서 이 For문이 우선순위가 높은 연산이 나올때까지 계속해서 parseExpression을 재귀호출함
+		// 3. 결과적으로 우선순위를 기준으로 Right 노드에 재귀적으로 Expression 노드를 담아놓는 형태가 됨
+		leftExpression = infixFunc(leftExpression)
+	}
+
 	return leftExpression
 }
 
@@ -193,6 +219,20 @@ func (p *Parser) parsePrefixExpression() ast.Expression {
 	return expression
 }
 
+func (p *Parser) parseInfixExpression(left ast.Expression) ast.Expression {
+	expression := &ast.InfixExpression{
+		Token:    p.currentToken,
+		Left:     left,
+		Operator: p.currentToken.Literal,
+	}
+
+	precedence := p.curPrecedence()
+	p.nextToken()
+	expression.Right = p.parseExpression(precedence)
+
+	return expression
+}
+
 func (p *Parser) currentTokenIs(t token.TokenType) bool {
 	return p.currentToken.Type == t
 }
@@ -216,4 +256,30 @@ func (p *Parser) registerPrefix(tokenType token.TokenType, fn prefixParseFn) {
 
 func (p *Parser) registerInfix(tokenType token.TokenType, fn infixParseFn) {
 	p.infixParseFns[tokenType] = fn
+}
+
+// 연산자들의 우선순위 지정
+var precedences = map[token.TokenType]int{
+	token.EQ:       EQUALS,
+	token.NOT_EQ:   EQUALS,
+	token.LT:       LESSGREATER,
+	token.GT:       LESSGREATER,
+	token.PLUS:     SUM,
+	token.MINUS:    SUM,
+	token.SLASH:    PRODUCT,
+	token.ASTERISK: PRODUCT,
+}
+
+func (p *Parser) peekPrecedence() int {
+	if p, ok := precedences[p.peekToken.Type]; ok {
+		return p
+	}
+	return LOWEST
+}
+
+func (p *Parser) curPrecedence() int {
+	if p, ok := precedences[p.currentToken.Type]; ok {
+		return p
+	}
+	return LOWEST
 }
