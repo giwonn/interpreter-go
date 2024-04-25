@@ -60,6 +60,9 @@ func New(l *lexer.Lexer) *Parser {
 	// 그룹표현식(소괄호) 파싱 함수 추가
 	p.registerPrefix(token.LPAREN, p.parseGroupedExpression)
 
+	// if문 파싱 함수 추가
+	p.registerPrefix(token.IF, p.parseIfExpression)
+
 	// 중위표현식 파싱 함수 추가
 	p.infixParseFns = make(map[token.TokenType]infixParseFn)
 	p.registerInfix(token.PLUS, p.parseInfixExpression)
@@ -119,6 +122,63 @@ func (p *Parser) parseGroupedExpression() ast.Expression {
 	}
 
 	return expression
+}
+
+func (p *Parser) parseIfExpression() ast.Expression {
+	expression := &ast.IfExpression{Token: p.currentToken}
+
+	// if문 다음에는 '('가 나와야함
+	if !p.expectPeek(token.LPAREN) {
+		return nil
+	}
+
+	// '(' 다음에 조건이 나오니까 nextToken 호출
+	p.nextToken()
+
+	// 조건 파싱
+	expression.Condition = p.parseExpression(LOWEST)
+
+	// 조건이 끝나면 ')'가 나와야함
+	if !p.expectPeek(token.RPAREN) {
+		return nil
+	}
+
+	// ')' 다음에는 '{'가 나와야함
+	if !p.expectPeek(token.LBRACE) {
+		return nil
+	}
+
+	// '{' 이후에는 if문 true일 때의 구문이 나와야함
+	expression.Consequence = p.parseBlockStatement()
+
+	if p.peekTokenIs(token.ELSE) {
+		p.nextToken()
+
+		if !p.expectPeek(token.LBRACE) {
+			return nil
+		}
+
+		expression.Alternative = p.parseBlockStatement()
+	}
+
+	return expression
+}
+
+func (p *Parser) parseBlockStatement() *ast.BlockStatement {
+	block := &ast.BlockStatement{Token: p.currentToken}
+	block.Statements = []ast.Statement{}
+
+	p.nextToken()
+
+	for !p.currentTokenIs(token.RBRACE) && !p.currentTokenIs(token.EOF) {
+		statement := p.parseStatement()
+		if statement != nil {
+			block.Statements = append(block.Statements, statement)
+		}
+		p.nextToken()
+	}
+
+	return block
 }
 
 func (p *Parser) parseInfixExpression(left ast.Expression) ast.Expression {
