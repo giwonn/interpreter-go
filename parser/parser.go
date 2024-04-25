@@ -168,9 +168,12 @@ func (p *Parser) parseBlockStatement() *ast.BlockStatement {
 	block := &ast.BlockStatement{Token: p.currentToken}
 	block.Statements = []ast.Statement{}
 
+	// '{'에서 다음 토큰으로 진행
 	p.nextToken()
 
+	// '{' 이후에는 '}'를 만날 때 까지 if문이 true일 때의 구문임
 	for !p.currentTokenIs(token.RBRACE) && !p.currentTokenIs(token.EOF) {
+		// for문을 통해 구문별로 파싱
 		statement := p.parseStatement()
 		if statement != nil {
 			block.Statements = append(block.Statements, statement)
