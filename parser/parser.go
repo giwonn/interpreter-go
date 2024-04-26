@@ -19,6 +19,19 @@ const (
 	CALL        // myFunction(X)
 )
 
+// 연산자들의 우선순위 지정
+var precedences = map[token.TokenType]int{
+	token.EQ:       EQUALS,
+	token.NOT_EQ:   EQUALS,
+	token.LT:       LESSGREATER,
+	token.GT:       LESSGREATER,
+	token.PLUS:     SUM,
+	token.MINUS:    SUM,
+	token.SLASH:    PRODUCT,
+	token.ASTERISK: PRODUCT,
+	token.LPAREN:   CALL,
+}
+
 type (
 	prefixParseFn func() ast.Expression
 	// 파라미터로 좌측 피연산자를 받음
@@ -63,6 +76,9 @@ func New(l *lexer.Lexer) *Parser {
 	// if문 파싱 함수 추가
 	p.registerPrefix(token.IF, p.parseIfExpression)
 
+	// function 파싱 함수 추가
+	p.registerPrefix(token.FUNCTION, p.parseFunctionExpression)
+
 	// 중위표현식 파싱 함수 추가
 	p.infixParseFns = make(map[token.TokenType]infixParseFn)
 	p.registerInfix(token.PLUS, p.parseInfixExpression)
@@ -73,6 +89,9 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerInfix(token.NOT_EQ, p.parseInfixExpression)
 	p.registerInfix(token.LT, p.parseInfixExpression)
 	p.registerInfix(token.GT, p.parseInfixExpression)
+
+	// 함수 호출 표현식 파싱 함수 추가
+	p.registerInfix(token.LPAREN, p.parseCallExpression)
 
 	return p
 }
@@ -184,6 +203,59 @@ func (p *Parser) parseBlockStatement() *ast.BlockStatement {
 	return block
 }
 
+func (p *Parser) parseFunctionExpression() ast.Expression {
+
+	lit := &ast.FunctionLiteral{Token: p.currentToken}
+
+	// 여는 소괄호(=파라미터 시작지점) 이 아니면 리턴
+	if !p.expectPeek(token.LPAREN) {
+		return nil
+	}
+
+	lit.Parameters = p.parseFunctionParameters()
+
+	if !p.expectPeek(token.LBRACE) {
+		return nil
+	}
+
+	lit.Body = p.parseBlockStatement()
+
+	return lit
+}
+
+// prefix가 FUNCTION 토큰일때 소괄호까지 토큰 진행 후 호출됨
+func (p *Parser) parseFunctionParameters() []*ast.Identifier {
+	identifiers := []*ast.Identifier{}
+
+	// 파라미터가 비어있으면 여는 소괄호 바로 뒤에 닫는 소괄호가 나올 수 있음
+	if p.peekTokenIs(token.RPAREN) {
+		p.nextToken() // 닫힌 소괄호 스킵
+		return identifiers
+	}
+
+	// 소괄호 내부의 파라미터부터 토큰 진행하기 위한 호출
+	p.nextToken()
+
+	// 첫 파라미터 호출 후 저장
+	identifier := &ast.Identifier{Token: p.currentToken, Value: p.currentToken.Literal}
+	identifiers = append(identifiers, identifier)
+
+	// 두번 째 파라미터가 있는지 콤마로 식별
+	for p.peekTokenIs(token.COMMA) {
+		p.nextToken() // 호출을 통해 토큰을 콤마로 진행
+		p.nextToken() // 호출을 통해 토큰을 다음 파라미터로 진행
+		identifier := &ast.Identifier{Token: p.currentToken, Value: p.currentToken.Literal}
+		identifiers = append(identifiers, identifier)
+	}
+
+	// 마지막 파라미터 수집 후 닫는 소괄호가 안나오면 잘못된 문법이므로 nil 리턴
+	if !p.expectPeek(token.RPAREN) {
+		return nil
+	}
+
+	return identifiers
+}
+
 func (p *Parser) parseInfixExpression(left ast.Expression) ast.Expression {
 	expression := &ast.InfixExpression{
 		Token:    p.currentToken,
@@ -196,6 +268,37 @@ func (p *Parser) parseInfixExpression(left ast.Expression) ast.Expression {
 	expression.Right = p.parseExpression(precedence)
 
 	return expression
+}
+
+func (p *Parser) parseCallExpression(function ast.Expression) ast.Expression {
+	expression := &ast.CallExpression{Token: p.currentToken, Function: function}
+	expression.Arguments = p.parseCallArguments()
+	return expression
+}
+
+func (p *Parser) parseCallArguments() []ast.Expression {
+	args := []ast.Expression{}
+
+	if p.peekTokenIs(token.RPAREN) {
+		p.nextToken()
+		return args
+	}
+
+	p.nextToken()
+	args = append(args, p.parseExpression(LOWEST))
+
+	for p.peekTokenIs(token.COMMA) {
+		p.nextToken() // 호출 후 현재 토큰 : 콤마
+		p.nextToken() // 호출 후 현재 토큰 : 다음 아규먼트
+		args = append(args, p.parseExpression(LOWEST))
+	}
+
+	// 함수 호출식이 마지막에 소괄호로 닫히는지 확인
+	if !p.expectPeek(token.RPAREN) {
+		return nil
+	}
+
+	return args
 }
 
 func (p *Parser) Errors() []string {
@@ -278,7 +381,7 @@ func (p *Parser) parseReturnStatement() *ast.ReturnStatement {
 
 func (p *Parser) parseExpressionStatement() *ast.ExpressionStatement {
 	statement := &ast.ExpressionStatement{Token: p.currentToken}
-	statement.Expression = p.parseExpression(LOWEST)
+	statement.Expression = p.parseExpression(LOWEST) // ")"를 만나면 parseExpression 루프 종료하면서 리턴
 
 	if p.peekTokenIs(token.SEMICOLON) {
 		p.nextToken()
@@ -342,18 +445,6 @@ func (p *Parser) registerPrefix(tokenType token.TokenType, fn prefixParseFn) {
 
 func (p *Parser) registerInfix(tokenType token.TokenType, fn infixParseFn) {
 	p.infixParseFns[tokenType] = fn
-}
-
-// 연산자들의 우선순위 지정
-var precedences = map[token.TokenType]int{
-	token.EQ:       EQUALS,
-	token.NOT_EQ:   EQUALS,
-	token.LT:       LESSGREATER,
-	token.GT:       LESSGREATER,
-	token.PLUS:     SUM,
-	token.MINUS:    SUM,
-	token.SLASH:    PRODUCT,
-	token.ASTERISK: PRODUCT,
 }
 
 func (p *Parser) peekPrecedence() int {
