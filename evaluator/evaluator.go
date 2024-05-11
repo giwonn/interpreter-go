@@ -20,12 +20,16 @@ func Eval(node ast.Node) object.Object {
 	case *ast.ExpressionStatement:
 		return Eval(node.Expression)
 
-	// 표현식
+	// 표현식들만 실제로 평가 진행
 	case *ast.IntegerLiteral:
 		return &object.Integer{Value: node.Value}
 
 	case *ast.Boolean:
 		return nativeBoolToBooleanObject(node.Value)
+
+	case *ast.PrefixExpression:
+		right := Eval(node.Right)
+		return evalPrefixExpression(node.Operator, right)
 	}
 
 	return nil
@@ -46,4 +50,8 @@ func nativeBoolToBooleanObject(input bool) *object.Boolean {
 		return TRUE
 	}
 	return FALSE
+}
+
+func evalPrefixExpression(operator string, right object.Object) object.Object {
+		return NULL
 }
