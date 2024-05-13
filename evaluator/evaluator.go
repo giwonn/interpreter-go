@@ -23,27 +23,35 @@ var (
 	FALSE = &object.Boolean{Value: false}
 )
 
-func Eval(node ast.Node) object.Object {
+func Eval(node ast.Node, env *object.Environment) object.Object {
 	switch node := node.(type) {
 	// 명령문
 	case *ast.Program:
-		return evalProgram(node.Statements)
+		return evalProgram(node.Statements, env)
 
 	case *ast.ExpressionStatement:
-		return Eval(node.Expression)
+		return Eval(node.Expression, env)
 
 	case *ast.BlockStatement:
-		return evalBlockStatements(node.Statements)
+		return evalBlockStatements(node.Statements, env)
 
 	case *ast.IfExpression:
-		return evalIfExpression(node)
+		return evalIfExpression(node, env)
 
 	case *ast.ReturnStatement:
-		val := Eval(node.ReturnValue)
+		val := Eval(node.ReturnValue, env)
 		if isError(val) {
 			return val
 		}
 		return &object.ReturnValue{Value: val}
+
+	// 함수가 리터럴로 변수에 할당된 경우 -> FunctionLiteral로 평가된 val을 변수명과 env에 저장
+	case *ast.LetStatement:
+		val := Eval(node.Value, env)
+		if isError(val) {
+			return val
+		}
+		env.Set(node.Name.Value, val)
 
 	// 표현식들만 실제로 평가 진행
 	case *ast.IntegerLiteral:
@@ -53,32 +61,62 @@ func Eval(node ast.Node) object.Object {
 		return nativeBoolToBooleanObject(node.Value)
 
 	case *ast.PrefixExpression:
-		right := Eval(node.Right)
+		right := Eval(node.Right, env)
 		if isError(right) {
 			return right
 		}
 		return evalPrefixExpression(node.Operator, right)
 
 	case *ast.InfixExpression:
-		left := Eval(node.Left)
+		left := Eval(node.Left, env)
 		if isError(left) {
 			return left
 		}
-		right := Eval(node.Right)
+		right := Eval(node.Right, env)
 		if isError(right) {
 			return right
 		}
 		return evalInfixExpression(node.Operator, left, right)
+
+	case *ast.Identifier:
+		return evalIdentifier(node, env)
+
+	case *ast.FunctionLiteral:
+		params := node.Parameters
+		body := node.Body
+		return &object.Function{Parameters: params, Body: body, Env: env}
+
+	case *ast.CallExpression:
+		// 변수를 호출한 경우 (=node.Function이 Identifier인 경우)
+		// -> evalIdentifier로 env 탐색하여 저장되어 있는 object.Function 리턴
+
+		// 즉시실행함수인 경우 (=node.Function이 FunctionLiteral인 경우)
+		// -> object.Function 생성하여 바로 리턴
+		function := Eval(node.Function, env)
+		if isError(function) {
+			return function
+		}
+
+		// 실제로 들어온 인자들을 평가
+		args := evalExpressions(node.Arguments, env)
+		if len(args) == 1 && isError(args[0]) {
+			return args[0]
+		}
+
+		// - 평가를 진행할 function과 평가된 args를 넘겨서 함수 평가 진행
+		// - function이 평가될 당시의 env를 사용하기 때문에 env는 인자로 넘기지 않음
+		// (함수 평가 당시의 env를 사용해도 상위의 env는 참조로 가지고 있기 때문에 함수 평가 이후에 외부 스코프의 평가값이 바뀌어도 괜찮음)
+		return applyFunction(function, args)
 	}
 
 	return nil
 }
 
-func evalProgram(statements []ast.Statement) object.Object {
+func evalProgram(statements []ast.Statement, env *object.Environment) object.Object {
 	var result object.Object
 
 	for _, statement := range statements {
-		result = Eval(statement)
+		result = Eval(statement, env)
 
 		switch result := result.(type) {
 		case *object.ReturnValue:
@@ -91,11 +129,11 @@ func evalProgram(statements []ast.Statement) object.Object {
 	return result
 }
 
-func evalBlockStatements(statements []ast.Statement) object.Object {
+func evalBlockStatements(statements []ast.Statement, env *object.Environment) object.Object {
 	var result object.Object
 
 	for _, statement := range statements {
-		result = Eval(statement)
+		result = Eval(statement, env)
 
 		// return 혹은 에러를 만나면 evalProgram()까지 거슬러 올라가서 처리됨
 		if result != nil {
@@ -195,16 +233,16 @@ func evalIntegerInfixExpression(
 	}
 }
 
-func evalIfExpression(ie *ast.IfExpression) object.Object {
-	condition := Eval(ie.Condition)
+func evalIfExpression(ie *ast.IfExpression, env *object.Environment) object.Object {
+	condition := Eval(ie.Condition, env)
 	if isError(condition) {
 		return condition
 	}
 
 	if isTruthy(condition) {
-		return Eval(ie.Consequence)
+		return Eval(ie.Consequence, env)
 	} else if ie.Alternative != nil {
-		return Eval(ie.Alternative)
+		return Eval(ie.Alternative, env)
 	} else {
 		return NULL
 	}
@@ -221,4 +259,70 @@ func isTruthy(obj object.Object) bool {
 	default:
 		return true
 	}
+}
+
+func evalIdentifier(
+	node *ast.Identifier,
+	env *object.Environment,
+) object.Object {
+	val, ok := env.Get(node.Value)
+	if !ok {
+		return newError("identifier not found: " + node.Value)
+	}
+
+	return val
+}
+
+func evalExpressions(
+	expressions []ast.Expression,
+	env *object.Environment,
+) []object.Object {
+	var result []object.Object
+
+	for _, expression := range expressions {
+		evaluated := Eval(expression, env)
+		if isError(evaluated) {
+			return []object.Object{evaluated}
+		}
+		result = append(result, evaluated)
+	}
+
+	return result
+}
+
+func applyFunction(fn object.Object, args []object.Object) object.Object {
+	function, ok := fn.(*object.Function)
+	if !ok {
+		return newError("not a function: %s", fn.Type())
+	}
+
+	// 환경을 확장하여 함수 body 평가
+	extendedEnv := extendedFunctionEnv(function, args)
+	evaluated := Eval(function.Body, extendedEnv)
+
+	return unwrapReturnValue(evaluated)
+}
+
+func extendedFunctionEnv(
+	fn *object.Function,
+	args []object.Object,
+) *object.Environment {
+	env := object.NewEnclosedEnvironment(fn.Env)
+
+	// 파라미터의 변수명과 호출 시 넣어준 인자를 순서대로 매칭시켜 K:V 형태로 저장
+	for paramIdx, param := range fn.Parameters {
+		env.Set(param.Value, args[paramIdx])
+	}
+
+	return env
+}
+
+func unwrapReturnValue(obj object.Object) object.Object {
+	// Return값을 Object로 그대로 전달하면 evalBlockStatment에서 평가를 멈추고 object 그대로 최상위까지 올려버림
+	// 함수 내부 리턴값은 함수에 대한 리터럴로 평가되어야 하기 때문!
+	if returnValue, ok := obj.(*object.ReturnValue); ok {
+		return returnValue.Value
+	}
+
+	return obj
 }
