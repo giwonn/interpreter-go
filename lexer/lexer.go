@@ -74,6 +74,9 @@ func (lexer *Lexer) NextToken() token.Token {
 		tok = newToken(token.LBRACE, lexer.ch)
 	case '}':
 		tok = newToken(token.RBRACE, lexer.ch)
+	case '"':
+		tok.Type = token.STRING
+		tok.Literal = lexer.readString()
 	case 0:
 		tok.Type = token.EOF
 		tok.Literal = ""
@@ -138,4 +141,19 @@ func (lexer *Lexer) peekChar() byte {
 	}
 
 	return lexer.input[lexer.readPosition]
+}
+
+func (lexer *Lexer) readString() string {
+	// 따옴표 다음 문자
+	start := lexer.readPosition
+
+	// 큰따옴표 혹은 입력의 끝까지 문자열을 계속 읽음
+	for {
+		lexer.readChar()
+		if lexer.ch == '"' || lexer.ch == 0 {
+			break
+		}
+	}
+
+	return lexer.input[start:lexer.position]
 }

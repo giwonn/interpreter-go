@@ -93,6 +93,9 @@ func New(l *lexer.Lexer) *Parser {
 	// 함수 호출 표현식 파싱 함수 추가
 	p.registerInfix(token.LPAREN, p.parseCallExpression)
 
+	// String 파싱 함수 추가
+	p.registerPrefix(token.STRING, p.parseStringLiteral)
+
 	return p
 }
 
@@ -464,4 +467,8 @@ func (p *Parser) curPrecedence() int {
 		return p
 	}
 	return LOWEST
+}
+
+func (p *Parser) parseStringLiteral() ast.Expression {
+	return &ast.StringLiteral{Token: p.currentToken, Value: p.currentToken.Literal}
 }
