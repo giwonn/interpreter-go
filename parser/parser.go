@@ -79,6 +79,12 @@ func New(l *lexer.Lexer) *Parser {
 	// function 파싱 함수 추가
 	p.registerPrefix(token.FUNCTION, p.parseFunctionExpression)
 
+	// String 파싱 함수 추가
+	p.registerPrefix(token.STRING, p.parseStringLiteral)
+
+	// Array 파싱 함수 추가
+	p.registerPrefix(token.LBRACKET, p.parseArrayLiteral)
+
 	// 중위표현식 파싱 함수 추가
 	p.infixParseFns = make(map[token.TokenType]infixParseFn)
 	p.registerInfix(token.PLUS, p.parseInfixExpression)
@@ -92,9 +98,6 @@ func New(l *lexer.Lexer) *Parser {
 
 	// 함수 호출 표현식 파싱 함수 추가
 	p.registerInfix(token.LPAREN, p.parseCallExpression)
-
-	// String 파싱 함수 추가
-	p.registerPrefix(token.STRING, p.parseStringLiteral)
 
 	return p
 }
@@ -275,33 +278,8 @@ func (p *Parser) parseInfixExpression(left ast.Expression) ast.Expression {
 
 func (p *Parser) parseCallExpression(function ast.Expression) ast.Expression {
 	expression := &ast.CallExpression{Token: p.currentToken, Function: function}
-	expression.Arguments = p.parseCallArguments()
+	expression.Arguments = p.parseExpressionList(token.RPAREN)
 	return expression
-}
-
-func (p *Parser) parseCallArguments() []ast.Expression {
-	args := []ast.Expression{}
-
-	if p.peekTokenIs(token.RPAREN) {
-		p.nextToken()
-		return args
-	}
-
-	p.nextToken()
-	args = append(args, p.parseExpression(LOWEST))
-
-	for p.peekTokenIs(token.COMMA) {
-		p.nextToken() // 호출 후 현재 토큰 : 콤마
-		p.nextToken() // 호출 후 현재 토큰 : 다음 아규먼트
-		args = append(args, p.parseExpression(LOWEST))
-	}
-
-	// 함수 호출식이 마지막에 소괄호로 닫히는지 확인
-	if !p.expectPeek(token.RPAREN) {
-		return nil
-	}
-
-	return args
 }
 
 func (p *Parser) Errors() []string {
@@ -471,4 +449,37 @@ func (p *Parser) curPrecedence() int {
 
 func (p *Parser) parseStringLiteral() ast.Expression {
 	return &ast.StringLiteral{Token: p.currentToken, Value: p.currentToken.Literal}
+}
+
+func (p *Parser) parseArrayLiteral() ast.Expression {
+	array := &ast.ArrayLiteral{Token: p.currentToken}
+
+	array.Elements = p.parseExpressionList(token.RBRACKET)
+
+	return array
+}
+
+func (p *Parser) parseExpressionList(end token.TokenType) []ast.Expression {
+	list := []ast.Expression{}
+
+	if p.peekTokenIs(token.RPAREN) {
+		p.nextToken()
+		return list
+	}
+
+	p.nextToken()
+	list = append(list, p.parseExpression(LOWEST))
+
+	for p.peekTokenIs(token.COMMA) {
+		p.nextToken() // 호출 후 현재 토큰 : 콤마
+		p.nextToken() // 호출 후 현재 토큰 : 다음 element
+		list = append(list, p.parseExpression(LOWEST))
+	}
+
+	// 함수 호출식이 마지막에 소괄호로 닫히는지 확인
+	if !p.expectPeek(end) {
+		return nil
+	}
+
+	return list
 }

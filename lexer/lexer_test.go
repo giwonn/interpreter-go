@@ -30,6 +30,7 @@ if (5 < 10) {
 
 "foobar"
 "foo bar"
+[1, 2];
 `
 
 	// 렉서로 파싱하였을 때 예상되는 토큰 리스트
@@ -109,6 +110,12 @@ if (5 < 10) {
 		{token.SEMICOLON, ";"},
 		{token.STRING, "foobar"},
 		{token.STRING, "foo bar"},
+		{token.LBRACKET, "["},
+		{token.INT, "1"},
+		{token.COMMA, ","},
+		{token.INT, "2"},
+		{token.RBRACKET, "]"},
+		{token.SEMICOLON, ";"},
 		{token.EOF, ""},
 	}
 
