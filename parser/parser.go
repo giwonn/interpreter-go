@@ -17,6 +17,7 @@ const (
 	PRODUCT     // *
 	PREFIX      // -X 또는 !X
 	CALL        // myFunction(X)
+	INDEX       // array[index]
 )
 
 // 연산자들의 우선순위 지정
@@ -30,6 +31,7 @@ var precedences = map[token.TokenType]int{
 	token.SLASH:    PRODUCT,
 	token.ASTERISK: PRODUCT,
 	token.LPAREN:   CALL,
+	token.LBRACKET: INDEX,
 }
 
 type (
@@ -98,6 +100,9 @@ func New(l *lexer.Lexer) *Parser {
 
 	// 함수 호출 표현식 파싱 함수 추가
 	p.registerInfix(token.LPAREN, p.parseCallExpression)
+
+	// Array 인덱스 파싱 함수
+	p.registerInfix(token.LBRACKET, p.parseIndexExpression)
 
 	return p
 }
@@ -385,7 +390,7 @@ func (p *Parser) parseExpression(precedence int) ast.Expression {
 	}
 	leftExpression := prefixFunc()
 
-	// 문장별로 처음 호출되는 parseExpression은 precdence를 LOWEST로 받기 때문에 사실상 세미콜론이 나올때까지 계속 루프를 돌게 됨
+	// 문장별로 처음 호출되는 parseExpression은 precedence를 LOWEST로 받기 때문에 먼저 계산되어야 할 Expression까지 계속 루프를 돌게 됨
 	for !p.peekTokenIs(token.SEMICOLON) && precedence < p.peekPrecedence() {
 		infixFunc := p.infixParseFns[p.peekToken.Type]
 		if infixFunc == nil {
@@ -395,7 +400,8 @@ func (p *Parser) parseExpression(precedence int) ast.Expression {
 		p.nextToken()
 
 		// 1. infixFunc으로 사용되는 parseInfixExpression에서 parseExpression 함수에 중위연산자 우선순위를 precedence로 전달하여 재귀호출하고 있음
-		// 2. 재귀 호출을 통해서 이 For문이 우선순위가 높은 연산이 나올때까지 계속해서 parseExpression을 재귀호출함
+		// 2. 우선순위가 낮은 연산이 나올때까지 계속해서 parseExpression을 재귀호출함
+		// 3. parseInfixExpression와 같은 함수에서 우선순위에 의해 재귀가 끝난 데이터는 Right에 담아놓음
 		// 3. 결과적으로 우선순위를 기준으로 Right 노드에 재귀적으로 Expression 노드를 담아놓는 형태가 됨
 		leftExpression = infixFunc(leftExpression)
 	}
@@ -462,7 +468,7 @@ func (p *Parser) parseArrayLiteral() ast.Expression {
 func (p *Parser) parseExpressionList(end token.TokenType) []ast.Expression {
 	list := []ast.Expression{}
 
-	if p.peekTokenIs(token.RPAREN) {
+	if p.peekTokenIs(end) {
 		p.nextToken()
 		return list
 	}
@@ -476,10 +482,23 @@ func (p *Parser) parseExpressionList(end token.TokenType) []ast.Expression {
 		list = append(list, p.parseExpression(LOWEST))
 	}
 
-	// 함수 호출식이 마지막에 소괄호로 닫히는지 확인
+	// 함수 호출식이 마지막에 end로 닫히는지 확인 ex_ ), ], ...
 	if !p.expectPeek(end) {
 		return nil
 	}
 
 	return list
+}
+
+func (p *Parser) parseIndexExpression(left ast.Expression) ast.Expression {
+	exp := &ast.IndexExpression{Token: p.currentToken, Left: left}
+
+	p.nextToken()
+	exp.Index = p.parseExpression(LOWEST)
+
+	if !p.expectPeek(token.RBRACKET) {
+		return nil
+	}
+
+	return exp
 }
