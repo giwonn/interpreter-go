@@ -38,6 +38,7 @@ const (
 	RBRACE    = "}"
 	LBRACKET  = "["
 	RBRACKET  = "]"
+	COLON     = ":"
 
 	// 예약어
 	FUNCTION = "FUNCTION"
