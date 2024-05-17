@@ -1,6 +1,9 @@
 package evaluator
 
-import "interpreter-go/object"
+import (
+	"fmt"
+	"interpreter-go/object"
+)
 
 var builtins = map[string]*object.Builtin{
 	// 문자열 또는 배열의 길이를 리턴
@@ -95,6 +98,14 @@ var builtins = map[string]*object.Builtin{
 			newElements[length] = args[1]
 
 			return &object.Array{Elements: newElements}
+		},
+	},
+	"puts": &object.Builtin{
+		Fn: func(args ...object.Object) object.Object {
+			for _, arg := range args {
+				fmt.Println(arg.Inspect())
+			}
+			return NULL
 		},
 	},
 }
